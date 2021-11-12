@@ -1,42 +1,37 @@
 package webSubmitter.supplier;
 
-import util.ConstantesUtil;
+import util.ConstantUtils;
+
+import java.util.Arrays;
 
 public class SupplierContext {
 	private ISupplier supplier;
-	private final ISupplier DEFAULT_SUPPLIER;
-	
+
 	public SupplierContext() {
-		this.DEFAULT_SUPPLIER = new FreeProxyListSupplier();
-		this.supplier = DEFAULT_SUPPLIER;
+		this.supplier = Suppliers.FREE_PROXY_LIST.getSupplier();
 	}
 
-	public void setSupplier(String supplierName){
+	public void setSupplier(final String supplierName){
 		try {
-			
-			if(!supplierName.equals(ConstantesUtil.NO_VALUE)) {
-				for (SuppliersList enumItem : SuppliersList.values()) {
-					
-					if(enumItem.getName().equals(supplierName)) {
-						this.supplier = enumItem.getSupplier();
-						return;
-					}
-				}
-			}
-			
-			this.supplier = DEFAULT_SUPPLIER;
-		} catch (Exception e) {
-			e.printStackTrace();
+			final boolean isInvalidValue = supplierName == null || supplierName.equals(ConstantUtils.NO_VALUE);
+
+			if(!isInvalidValue)
+				this.supplier = setSupplierByName(supplierName).getSupplier();
+		} catch (final Exception exception) {
+			exception.printStackTrace();
 		}
 	}
 
-	public ISupplier getSupplier(){
-		return this.supplier;
+	private Suppliers setSupplierByName(final String supplierName){
+		return Arrays.stream(Suppliers.values())
+			 	.filter(supplier -> supplierName.equals(supplier.getName()))
+				.findFirst()
+				.orElse(Suppliers.FREE_PROXY_LIST);
 	}
-	
-	public ISupplier getSupplier(String supplierName){
+
+	public ISupplier getSupplier(final String supplierName){
 		this.setSupplier(supplierName);
-		
+
 		return this.supplier;
 	}
 }

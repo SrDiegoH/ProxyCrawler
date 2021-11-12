@@ -1,196 +1,199 @@
 package webSubmitter.supplier;
 
-import java.util.ArrayList;
-import java.util.logging.Level;
-
-import org.apache.commons.logging.LogFactory;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.NicelyResynchronizingAjaxController;
 import com.gargoylesoftware.htmlunit.WebClient;
+import com.gargoylesoftware.htmlunit.WebClientOptions;
 import com.gargoylesoftware.htmlunit.html.HtmlElement;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.gargoylesoftware.htmlunit.html.HtmlSelect;
-
 import model.Local;
 import model.Proxy;
-import util.ConstantesUtil;
+import org.apache.commons.logging.LogFactory;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.select.Elements;
+import util.ConstantUtils;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public class MyIPHideSupplier implements ISupplier {
-	
+
 	public MyIPHideSupplier() {
 		LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
 		java.util.logging.Logger.getLogger("com.gargoylesoftware").setLevel(Level.OFF);
 		java.util.logging.Logger.getLogger("org.apache.http.client").setLevel(Level.OFF);
 	}
-	
-	public ArrayList<Local> listPlaces(String localOrigem){
-		
-		WebClient webClient = createWebClient();
-		
-		try {
-		    HtmlPage htmlPage = webClient.getPage("https://free-proxy-list.net/");
-		    
-		    if(htmlPage.getWebResponse().getStatusCode() != 200)
-		    	throw new Exception();
-		    
-		    waitForBackGroudJs(webClient, htmlPage);
-		    
-		    String html = htmlPage.asXml();
-		    
-			Document htmlDocument = Jsoup.parse(html);
-			
-			Elements options = htmlDocument.select("#proxylisttable > tfoot > tr > th:nth-child(4) > select > option");
-			
-			if(options != null) {
-				ArrayList<Local> locations = new ArrayList<>();
-				
-				HtmlElement parsedHtml = htmlPage.getDocumentElement();
-				for (int i = 0; i < options.size(); i++) {
-					try {
-						Element optionElement = options.get(i);
-						
-						String optionText = optionElement.text();
-						
-						boolean isNotAllItem = !optionText.contains("All");
-						
-						boolean isEmpty = true;
-						
-						if(isNotAllItem) {
-							HtmlElement option = parsedHtml.getElementsByAttribute("option", "value", optionElement.attr("value")).get(0);
-							
-							waitForBackGroudJs(webClient, htmlPage);
-							
-							htmlPage = option.click();
-							
-							parsedHtml = htmlPage.getDocumentElement();
-							
-							int size = parsedHtml.querySelector("#proxylisttable > tbody").getChildNodes().size();
-							
-							isEmpty = size == 0;
-							
-							if(isEmpty)
-								continue;
-						}
 
-						Local local = new Local(optionText);
-												
-						locations.add(local);	
-					} catch (Exception e) { }
-				}
-								
-				return locations;
-			}
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		} finally {
-			webClient.close();
-		}
-		
-		return null;
-	}
-	
-	public ArrayList<Proxy> listPoxies(String local, String protocol){
-		
-		WebClient webClient = createWebClient();
-		
-		try {			
-		    HtmlPage htmlPage = webClient.getPage("https://free-proxy-list.net/");
-		    
-		    if(htmlPage.getWebResponse().getStatusCode() != 200)
+	public List<Local> listPlaces(final String origin){
+		final WebClient client = createWebClient();
+
+		try {
+		    final HtmlPage page = client.getPage("https://free-proxy-list.net/");
+
+		    if(page.getWebResponse().getStatusCode() != 200)
 		    	throw new Exception();
-		    
-		    waitForBackGroudJs(webClient, htmlPage);
-		    			
-		    HtmlSelect htmlSelect;
-		    if(!local.equals(ConstantesUtil.NO_VALUE)) {
-				htmlSelect = (HtmlSelect) htmlPage.getFirstByXPath("//*[@id=\"proxylisttable\"]/tfoot/tr/th[4]/select");
-				htmlSelect.setSelectedAttribute(local, true);
-				
-				waitForBackGroudJs(webClient, htmlPage);
-				
-				htmlPage = (HtmlPage) htmlSelect.click();
-			}
-		    
-		    if(!protocol.equals(ConstantesUtil.NO_VALUE)) {
-		    	htmlSelect = (HtmlSelect) htmlPage.getFirstByXPath("//*[@id=\"proxylisttable\"]/tfoot/tr/th[7]/select");
-		    	htmlSelect.setSelectedAttribute(protocol.equalsIgnoreCase(ConstantesUtil.HTTPS)? "yes" : "no", true);
-		    	
-		    	waitForBackGroudJs(webClient, htmlPage);
-		    	
-		    	htmlPage = (HtmlPage) htmlSelect.click();
-		    }
-			
-			htmlSelect = (HtmlSelect) htmlPage.getFirstByXPath("//*[@id=\"proxylisttable\"]/tfoot/tr/th[5]/select");
-			htmlSelect.setSelectedAttribute("elite proxy", true);
-			
-			waitForBackGroudJs(webClient, htmlPage);
-			
-			htmlPage = (HtmlPage) htmlSelect.click();
-			
-		    String html = htmlPage.asXml();
-		    
-			Document htmlParseado = Jsoup.parse(html);
-			
-			Elements linhasTabela = htmlParseado.select("#proxylisttable > tbody > tr");
-			
-			ArrayList<Proxy> proxies = new ArrayList<>(); 
-			for (Element linhaTabela : linhasTabela) {
-				try {
-					String ip = linhaTabela.select("td:nth-child(1)").first().text().trim();
-					String portAsText = linhaTabela.select("td:nth-child(2)").first().text().trim();
-					
-					Integer port = Integer.parseInt(portAsText);
-					
-					Proxy proxy = new Proxy.ProxyBuilder(ip, port).build(); 
-					
-					proxies.add(proxy);
-				} catch (Exception e) { }
-			}
-			
-			return proxies;
-		} catch (Exception ex) {
-			ex.printStackTrace();
+
+		    waitForBackGroundJs(client, page);
+
+			final Document html = Jsoup.parse(page.asXml());
+
+			return Optional.ofNullable(html.select("#proxylisttable > tfoot > tr > th:nth-child(4) > select > option"))
+					.stream()
+					.map(optionElements -> getLocal(client, page, optionElements))
+					.filter(localOptional -> !localOptional.isEmpty())
+					.map(localOptional -> localOptional.get())
+					.collect(Collectors.toList());
+		} catch (final Exception exception) {
+			exception.printStackTrace();
 		} finally {
-			webClient.close();
+			client.close();
 		}
-		
-		return null;
+
+		return List.of();
 	}
-	
+
 	private WebClient createWebClient() {
-		WebClient webClient = new WebClient(BrowserVersion.CHROME);
-		
-		try {
-			webClient.getOptions().setUseInsecureSSL(true);
-			webClient.getOptions().setJavaScriptEnabled(true);
-			webClient.getOptions().setThrowExceptionOnScriptError(false);
-			webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
-			webClient.getOptions().setCssEnabled(true);
-			webClient.setAjaxController(new NicelyResynchronizingAjaxController());
-			webClient.getOptions().setTimeout(5000);
-			webClient.setJavaScriptTimeout(5000);	
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
-		
-		return webClient;
-	}
-	
-	private void waitForBackGroudJs(WebClient webClient, HtmlPage htmlPage) {
+		final WebClient client = new WebClient(BrowserVersion.CHROME);
 
+		try {
+			final WebClientOptions options = client.getOptions();
+			options.setUseInsecureSSL(true);
+			options.setJavaScriptEnabled(true);
+			options.setThrowExceptionOnScriptError(false);
+			options.setThrowExceptionOnFailingStatusCode(false);
+			options.setCssEnabled(true);
+			options.setTimeout(5000);
+
+			client.setAjaxController(new NicelyResynchronizingAjaxController());
+			client.setJavaScriptTimeout(5000);
+		} catch (final Exception exception) {
+			exception.printStackTrace();
+		}
+
+		return client;
+	}
+
+	private Optional<Local> getLocal(final WebClient client, final HtmlPage page, final Elements optionElements){
+		try {
+			final HtmlElement htmlElement = page.getDocumentElement();
+
+			final String optionText = optionElements.text();
+
+			final boolean isNotAllItem = !optionText.contains("All");
+
+			if(isNotAllItem) {
+				final String optionValue = optionElements.attr("value");
+				final HtmlElement option = htmlElement
+						.getElementsByAttribute("option", "value", optionValue)
+						.get(0);
+
+				waitForBackGroundJs(client, page);
+
+				final HtmlPage newPage = option.click();
+
+				final HtmlElement newHtmlElement = newPage.getDocumentElement();
+
+				final int size = newHtmlElement.querySelector("#proxylisttable > tbody").getChildNodes().size();
+
+				boolean isEmpty = size == 0;
+
+				if(isEmpty)
+					throw new Exception();
+			}
+
+			return Optional.ofNullable(new Local(optionText));
+		} catch (final Exception exception) {
+			return Optional.empty();
+		}
+	}
+
+	public List<Proxy> listProxies(final String local, final String protocol){
+		final WebClient client = createWebClient();
+
+		try {			
+		    final HtmlPage page = client.getPage("https://free-proxy-list.net/");
+
+		    if(page.getWebResponse().getStatusCode() != 200)
+		    	throw new Exception();
+
+		    waitForBackGroundJs(client, page);
+
+			clickOnFilter(client, page, local, 4).get();
+
+			clickOnFilter(client, page, protocol, 7).get();
+
+			final HtmlPage clickedToEliteProxy = clickOnFilter(client, page, "elite proxy", 5).get();
+
+		    final String xmlPage = clickedToEliteProxy.asXml();
+
+			final Document html = Jsoup.parse(xmlPage);
+
+			return html
+				.select("#proxylisttable > tbody > tr")
+				.stream()
+				.map(tableLine -> {
+					final String ip = tableLine
+							.select("td:nth-child(1)")
+							.first()
+							.text()
+							.trim();
+
+					final Integer port = Integer.parseInt(tableLine.select("td:nth-child(2)")
+							.first()
+							.text()
+							.trim());
+
+					return new Proxy.ProxyBuilder(ip, port).build();
+				})
+				.collect(Collectors.toList());
+		} catch (final Exception exception) {
+			exception.printStackTrace();
+		} finally {
+			client.close();
+		}
+
+		return List.of();
+	}
+
+	private Optional<HtmlPage> clickOnFilter(
+		final WebClient client,
+		final HtmlPage page,
+		final String value,
+		final int index
+	) throws IOException {
+		if(!value.equals(ConstantUtils.NO_VALUE)) {
+			final HtmlSelect htmlSelect = page.getFirstByXPath("//*[@id=\"proxylisttable\"]/tfoot/tr/th[" + index + "]/select");
+
+			if(value.contains(ConstantUtils.HTTP)) {
+				final String httpFilter = value.equalsIgnoreCase(ConstantUtils.HTTPS)? "yes" : "no";
+
+				htmlSelect.setSelectedAttribute(httpFilter, true);
+			} else
+				htmlSelect.setSelectedAttribute(value, true);
+
+			waitForBackGroundJs(client, page);
+
+			return Optional.ofNullable((HtmlPage) htmlSelect.click());
+		}
+
+		return Optional.empty();
+	}
+
+	private void waitForBackGroundJs(final WebClient webClient, final HtmlPage htmlPage) {
 		try {
 	    	webClient.waitForBackgroundJavaScript(5000);
 	    	webClient.waitForBackgroundJavaScriptStartingBefore(5000);
-	    	synchronized (htmlPage) { 
-					htmlPage.wait(5000);
+
+	    	synchronized (htmlPage) {
+				htmlPage.wait(5000);
 			}
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		} catch (final InterruptedException exception) {
+			exception.printStackTrace();
     	}
 	}
 }

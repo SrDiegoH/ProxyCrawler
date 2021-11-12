@@ -1,11 +1,11 @@
 package webSubmitter.supplier;
 
-import java.util.ArrayList;
-
 import model.Local;
 import model.Proxy;
 
+import java.util.List;
+
 public interface ISupplier {
-	public ArrayList<Local> listPlaces(String localOrigin);
-	public ArrayList<Proxy> listPoxies(String local, String protocol);
+	List<Local> listPlaces(String origin);
+	List<Proxy> listProxies(String origin, String protocol);
 }
